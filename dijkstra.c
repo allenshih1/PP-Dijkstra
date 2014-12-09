@@ -1,4 +1,5 @@
 #include<stdio.h>
+#include<sys/time.h>
 #include"omp.h"
 
 #define MAX_SIZE 10000
@@ -16,6 +17,8 @@ int main(void)
 	int c, numOfCase;
 	int n, m, u, v, w;
 	int i, j, min, k;
+	int msec, total;
+	struct timeval t1, t2;
 	scanf("%d", &numOfCase);
 
 	for(c = 0; c < numOfCase; c++)
@@ -32,14 +35,15 @@ int main(void)
 		for(i = 0; i < m; i++)
 		{
 			scanf("%d%d%d", &u, &v, &w);
-			adj[u-1][count[u-1]][0] = v-1;
-			adj[u-1][count[u-1]][1] = w;
-			adj[v-1][count[v-1]][0] = u-1;
-			adj[v-1][count[v-1]][1] = w;
-			count[u-1]++;
-			count[v-1]++;
+			adj[u][count[u]][0] = v;
+			adj[u][count[u]][1] = w;
+			adj[v][count[v]][0] = u;
+			adj[v][count[v]][1] = w;
+			count[u]++;
+			count[v]++;
 		}
 
+		gettimeofday(&t1, NULL);
 		distance[0] = 0;
 		omp_set_num_threads(4);
 #pragma omp parallel private(i,j)
@@ -96,6 +100,10 @@ int main(void)
 #pragma omp barrier
 			}
 		}
+		gettimeofday(&t2, NULL);
+		msec = (t2.tv_sec-t1.tv_sec)*1000;
+		msec += (t2.tv_usec-t1.tv_usec)/1000;
+		total += msec;
 
 		int max = 0;
 		for(i = 0; i < n; i++)
@@ -103,7 +111,9 @@ int main(void)
 				max = distance[i];
 
 		printf("%d\n", max);
+		/*printf("%dms\n", msec);*/
 
 	}
-  return 0;
+	printf("%d ms\n", total);
+	return 0;
 }
