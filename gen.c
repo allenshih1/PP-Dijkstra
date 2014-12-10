@@ -5,7 +5,7 @@ int main(int argc, char **argv)
 {
 	if(argc != 2)
 	{
-		fprintf(stderr, "usage: %d <num of vertex>\n", argv[0]);
+		fprintf(stderr, "usage: %s <num of vertex>\n", argv[0]);
 		exit(EXIT_FAILURE);
 	}
 	int c = 1;

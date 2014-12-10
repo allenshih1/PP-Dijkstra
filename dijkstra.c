@@ -17,7 +17,7 @@ int main(int argc, char **argv)
 {
 	if(argc != 2)
 	{
-		fprintf(stderr, "Usage: %d <num of threads>\n", argv[0]);
+		fprintf(stderr, "Usage: %s <num of threads>\n", argv[0]);
 		exit(EXIT_FAILURE);
 	}
 	int c, numOfCase;
