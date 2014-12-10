@@ -45,7 +45,7 @@ int main(void)
 
 		gettimeofday(&t1, NULL);
 		distance[0] = 0;
-		omp_set_num_threads(4);
+		omp_set_num_threads(8);
 #pragma omp parallel private(i,j)
 		{
 #pragma omp single
