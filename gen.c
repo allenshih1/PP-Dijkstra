@@ -1,9 +1,15 @@
 #include<stdio.h>
+#include<stdlib.h>
 
-int main(void)
+int main(int argc, char **argv)
 {
+	if(argc != 2)
+	{
+		fprintf(stderr, "usage: %d <num of vertex>\n", argv[0]);
+		exit(EXIT_FAILURE);
+	}
 	int c = 1;
-	int n = 10000;
+	int n = atoi(argv[1]);
 	int i, j, k;
 	printf("%d\n", c);
 	for(i = 0; i < c; i++)

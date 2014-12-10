@@ -1,7 +1,7 @@
 all: dijkstra gen
 
-dijkstra:
+dijkstra: dijkstra.c
 	gcc -fopenmp -o dijkstra dijkstra.c
 
-gen:
+gen: gen.c
 	gcc -o gen gen.c
