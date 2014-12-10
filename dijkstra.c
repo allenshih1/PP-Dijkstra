@@ -1,4 +1,5 @@
 #include<stdio.h>
+#include<stdlib.h>
 #include<sys/time.h>
 #include"omp.h"
 
@@ -12,8 +13,13 @@ int nthreads, chunk;
 
 void find_my_min();
 
-int main(void)
+int main(int argc, char **argv)
 {
+	if(argc != 2)
+	{
+		fprintf(stderr, "Usage: %d <num of threads>\n", argv[0]);
+		exit(EXIT_FAILURE);
+	}
 	int c, numOfCase;
 	int n, m, u, v, w;
 	int i, j, min, k;
@@ -45,7 +51,7 @@ int main(void)
 
 		gettimeofday(&t1, NULL);
 		distance[0] = 0;
-		omp_set_num_threads(4);
+		omp_set_num_threads(atoi(argv[1]));
 #pragma omp parallel private(i,j)
 		{
 #pragma omp single
