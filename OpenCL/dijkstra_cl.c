@@ -5,7 +5,7 @@
 #include <CL/cl.h>
 #endif
 
-#define MAX_SIZE 3000
+#define MAX_SIZE 10000
 
 int adj[MAX_SIZE][MAX_SIZE][2];
 int count[MAX_SIZE];
@@ -138,10 +138,10 @@ int main(void)
 		for(i = 0; i < m; i++)
 		{
 			scanf("%d%d%d", &u, &v, &w);
-			adj[u-1][count[u-1]][0] = v-1;
-			adj[u-1][count[u-1]][1] = w;
-			adj[v-1][count[v-1]][0] = u-1;
-			adj[v-1][count[v-1]][1] = w;
+			adj[u][count[u]][0] = v;
+			adj[u][count[u]][1] = w;
+			adj[v][count[v]][0] = u;
+			adj[v][count[v]][1] = w;
 			count[u-1]++;
 			count[v-1]++;
 		}
