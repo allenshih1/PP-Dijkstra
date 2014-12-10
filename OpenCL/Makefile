@@ -1,8 +1,10 @@
+CC = gcc
 CFLAGS =
-ifeq ($(CC), gcc)
-	LDFLAGS = -lOpenCL
-else
+UNAME := $(shell uname)
+ifeq ($(UNAME), Darwin)
 	LDFLAGS = -framework OpenCL
+else
+	LDFLAGS = -lOpenCL
 endif
 SOURCES = dijkstra_cl.c
 OBJECTS = $(SOURCES:.c=.o)
