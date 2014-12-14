@@ -1,8 +1,8 @@
 __kernel void init(__global int *count, __global int *distance, __global int *flag){
-    //int idx = get_global_id(0);
-    //count[idx] = 0;
-    //distance[idx] = -1;
-    //flag[idx] = 0;
+    int idx = get_global_id(0);
+    count[idx] = 0;
+    distance[idx] = -1;
+    flag[idx] = 0;
 }
 /*
 __kernel void dijkstra(__global float *d_Result, __global float *d_Input, int N){

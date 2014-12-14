@@ -31,6 +31,7 @@ int main(void)
     char *devName;
     char *devVer;
 	size_t cb;
+	cl_int err;
 
 	/*
 	clGetPlatformIDs(0, 0, &num_devices);
@@ -78,8 +79,24 @@ int main(void)
 		return 0;
 	}
 
+	// create buffers and copy data
+	//cl_mem cl_count = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, sizeof(int) * MAX_SIZE, &count[0], NULL);
+	//cl_mem cl_distance = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, sizeof(int) * MAX_SIZE, &distance[0], NULL);
+	//cl_mem cl_flag = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, sizeof(int) * MAX_SIZE, &flag[0], NULL);
+	cl_mem cl_count = clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(int) * MAX_SIZE, NULL, NULL);
+	cl_mem cl_distance = clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(int) * MAX_SIZE, NULL, NULL);
+	cl_mem cl_flag = clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(int) * MAX_SIZE, NULL, NULL);
+	if(cl_count == 0 || cl_distance == 0 || cl_flag == 0) {
+		perror("Can't create OpenCL buffer");
+		clReleaseMemObject(cl_count);
+		clReleaseMemObject(cl_distance);
+		clReleaseMemObject(cl_flag);
+		clReleaseCommandQueue(queue);
+		clReleaseContext(context);
+		return 0;
+	}
+
 	// create kernel object from compiled program
-	
 	init = clCreateKernel(program, "init", NULL);
 	if(init == 0)
 	{
@@ -90,6 +107,9 @@ int main(void)
 		clReleaseContext(context);
 		return 0;
 	}
+	clSetKernelArg(init, 0, sizeof(cl_mem), &cl_count);
+	clSetKernelArg(init, 1, sizeof(cl_mem), &cl_distance);
+	clSetKernelArg(init, 2, sizeof(cl_mem), &cl_flag);
 	/*
 	dijkstra = clCreateKernel(program, "dijkstra", NULL);
 	if(dijkstra == 0)
@@ -103,37 +123,30 @@ int main(void)
 	}
 	*/
 
-	// create buffers and copy data
-	//cl_mem cl_count = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, sizeof(int) * MAX_SIZE, &count[0], NULL);
-	//cl_mem cl_distance = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, sizeof(int) * MAX_SIZE, &distance[0], NULL);
-	//cl_mem cl_flag = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, sizeof(int) * MAX_SIZE, &flag[0], NULL);
-	cl_mem cl_count = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, sizeof(int) * MAX_SIZE, &count[0], NULL);
-	cl_mem cl_distance = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, sizeof(int) * MAX_SIZE, &distance[0], NULL);
-	cl_mem cl_flag = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, sizeof(int) * MAX_SIZE, &flag[0], NULL);
-	if(cl_count == 0 || cl_distance == 0 || cl_flag == 0) {
-		perror("Can't create OpenCL buffer");
-		clReleaseMemObject(cl_count);
-		clReleaseMemObject(cl_distance);
-		clReleaseMemObject(cl_flag);
-		clReleaseCommandQueue(queue);
-		clReleaseContext(context);
-		return 0;
-	}
-
 	scanf("%d", &num_cases);
 
 	for(c = 0; c < num_cases; c++)
 	{
 		scanf("%d%d", &n, &m);
-		///*
+		/*
 		for(i = 0; i < n; i++)
 		{
 			count[i] = 0;
 			distance[i] = -1;
 			flag[i] = 0;
 		}
-		//*/
-		
+		*/
+		//size_t work_size = MAX_SIZE;
+		// invoke kernel init
+		size_t work_size = n;
+		//size_t local_work_size = 256;
+		//size_t global_work_size = 
+		err = clEnqueueNDRangeKernel(queue, init, 1, NULL, &work_size, NULL, 0, NULL, NULL);
+		if(err == CL_SUCCESS) {
+			clEnqueueReadBuffer(queue, cl_count, CL_TRUE, 0, sizeof(int) * work_size, &count[0], 0, 0, 0);
+			clEnqueueReadBuffer(queue, cl_distance, CL_TRUE, 0, sizeof(int) * work_size, &distance[0], 0, 0, 0);
+			clEnqueueReadBuffer(queue, cl_flag, CL_TRUE, 0, sizeof(int) * work_size, &flag[0], 0, 0, 0);
+		}
 
 		for(i = 0; i < m; i++)
 		{
