@@ -1,11 +1,16 @@
-__kernel void init(__global int *count, __global int *distance, __global int *flag){
-	int idx = get_global_id(0);
-	count[idx] = 0;
-	distance[idx] = -1;
-	flag[idx] = 0;
+__kernel void init(__global int *count, __global int *distance, __global int *flag, const int n)
+{
+	int tid = get_global_id(0);
+	if(tid < n)
+	{
+		count[tid] = 0;
+		distance[tid] = -1;
+		flag[tid] = 0;
+	}
 }
 
-__kernel void extractMin(__global int *distance, __global int *flag, __global int *min, __global int *minID) {
+__kernel void extractMin(__global int *distance, __global int *flag, __global int *min, __global int *minID)
+{
 	/*
 	int gid = get_global_id(0);
 	int lid = get_local_id(0);

@@ -18,6 +18,7 @@ $(OBJECTS): $(SOURCES)
 	$(CC) $(CFLAGS) $(SOURCES) -c
 
 run:
-	../gen 10000 | ./$(EXECUTE)
+	./$(EXECUTE) < in.txt
+	#../gen 10000 | ./$(EXECUTE)
 clean:
 	rm -rf *~ *.o $(EXECUTE)

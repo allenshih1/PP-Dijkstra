@@ -24,7 +24,6 @@ int main(void)
 	// OpenCL
 	cl_context context;
 	cl_uint num_devices;
-	//cl_platform_id *platforms;
 	cl_device_id *devices;
 	cl_command_queue queue;
 	cl_program program;
@@ -33,8 +32,12 @@ int main(void)
     char *devVer;
 	size_t cb;
 	cl_int err;
+	size_t actual_work_size;
+	size_t global_work_size;
+	size_t local_work_size;
 
 	/*
+	cl_platform_id *platforms;
 	clGetPlatformIDs(0, 0, &num_devices);
 	platforms = (cl_platform_id*) malloc(num_devices * sizeof(cl_platform_id));
 	clGetPlatformIDs(num_devices, &platforms[0], NULL);
@@ -87,7 +90,8 @@ int main(void)
 	cl_mem cl_count = clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(int) * MAX_SIZE, NULL, NULL);
 	cl_mem cl_distance = clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(int) * MAX_SIZE, NULL, NULL);
 	cl_mem cl_flag = clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(int) * MAX_SIZE, NULL, NULL);
-	if(cl_count == 0 || cl_distance == 0 || cl_flag == 0) {
+	if(cl_count == 0 || cl_distance == 0 || cl_flag == 0)
+	{
 		perror("Can't create OpenCL buffer");
 		clReleaseMemObject(cl_count);
 		clReleaseMemObject(cl_distance);
@@ -148,19 +152,29 @@ int main(void)
 	for(c = 0; c < num_cases; c++)
 	{
 		scanf("%d%d", &n, &m);
-
+		/*
+		for(i = 0; i < n; i++)
+		{
+			count[i] = 0;
+			distance[i] = -1;
+			flag[i] = 0;
+		}
+		*/
+		///*
 		// invoke kernel init
-		size_t work_size = n;
-		size_t local_work_size = 64;
-		size_t global_work_size = n;
+		actual_work_size = n;
+		local_work_size = 256;
+		global_work_size = n  + (256 - n % 256);	// must be the multiple of local_work_size
 		//size_t num_groups = global_work_size / local_work_size;
-		err = clEnqueueNDRangeKernel(queue, init, 1, NULL, &global_work_size, NULL, 0, NULL, NULL);
+		clSetKernelArg(init, 3, sizeof(int), &n);
+		err = clEnqueueNDRangeKernel(queue, init, 1, NULL, &global_work_size, &local_work_size, 0, NULL, NULL);
 		if(err == CL_SUCCESS)
 		{
-			clEnqueueReadBuffer(queue, cl_count, CL_TRUE, 0, sizeof(int) * work_size, &count[0], 0, NULL, NULL);
-			clEnqueueReadBuffer(queue, cl_distance, CL_TRUE, 0, sizeof(int) * work_size, &distance[0], 0, NULL, NULL);
-			clEnqueueReadBuffer(queue, cl_flag, CL_TRUE, 0, sizeof(int) * work_size, &flag[0], 0, NULL, NULL);
+			clEnqueueReadBuffer(queue, cl_count, CL_TRUE, 0, sizeof(int) * actual_work_size, &count[0], 0, NULL, NULL);
+			clEnqueueReadBuffer(queue, cl_distance, CL_TRUE, 0, sizeof(int) * actual_work_size, &distance[0], 0, NULL, NULL);
+			clEnqueueReadBuffer(queue, cl_flag, CL_TRUE, 0, sizeof(int) * actual_work_size, &flag[0], 0, NULL, NULL);
 		}
+		//*/
 
 		for(i = 0; i < m; i++)
 		{
@@ -169,8 +183,8 @@ int main(void)
 			adj[u][count[u]][1] = w;
 			adj[v][count[v]][0] = u;
 			adj[v][count[v]][1] = w;
-			count[u-1]++;
-			count[v-1]++;
+			count[u]++;
+			count[v]++;
 		}
 
 		distance[0] = 0;
@@ -181,16 +195,16 @@ int main(void)
 			int min = INFINITY;
 			int minID;
 			clEnqueueWriteBuffer(queue, cl_min, CL_TRUE, 0, sizeof(int), &min, 0, NULL, NULL);
-			/*
+			///*
 			for(j = 0; j < n; j++)
 				if(!flag[j] && distance[j] != -1 && distance[j] < min )
 				{
 					min = distance[j];
 					k = j;
 				}
-			*/
+			//*/
 			// invoke kernel extractMin
-			///*
+			/*
 			local_work_size = 64;
 			global_work_size = n;
 			err = clEnqueueNDRangeKernel(queue, extractMin, 1, NULL, &global_work_size, NULL, 0, NULL, NULL);
@@ -199,7 +213,7 @@ int main(void)
 				clEnqueueReadBuffer(queue, cl_min, CL_TRUE, 0, sizeof(int), &min, 0, NULL, NULL);
 				clEnqueueReadBuffer(queue, cl_minID, CL_TRUE, 0, sizeof(int), &minID, 0, NULL, NULL);
 			}
-			//*/
+			*/
 
 			for(j = 0; j < count[k]; j++)
 				if(distance[adj[k][j][0]] == -1 ||
