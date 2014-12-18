@@ -5,7 +5,8 @@
 
 #define MAX_SIZE 10000
 
-int adj[MAX_SIZE][MAX_SIZE][2];
+int adj[MAX_SIZE][MAX_SIZE];
+int weight[MAX_SIZE][MAX_SIZE];
 int count[MAX_SIZE];
 int distance[MAX_SIZE];
 int flag[MAX_SIZE];
@@ -34,17 +35,17 @@ int main(int argc, char **argv)
 		for(i = 0; i < n; i++)
 		{
 			count[i] = 0;
-			distance[i] = -1;
+			distance[i] = 1e9;
 			flag[i] = 0;
 		}
 
 		for(i = 0; i < m; i++)
 		{
 			scanf("%d%d%d", &u, &v, &w);
-			adj[u][count[u]][0] = v;
-			adj[u][count[u]][1] = w;
-			adj[v][count[v]][0] = u;
-			adj[v][count[v]][1] = w;
+			adj[u][count[u]] = v;
+			weight[u][count[u]] = w;
+			adj[v][count[v]] = u;
+			weight[v][count[v]] = w;
 			count[u]++;
 			count[v]++;
 		}
@@ -70,12 +71,12 @@ int main(int argc, char **argv)
 			{
 #pragma omp single
 				{
-					min = 1000000000;
+					min = 1e9;
 				}
-				int my_min = 1000000000;
+				int my_min = 1e9;
 				int my_k;
 				for(j = startv; j < endv; j++)
-					if(!flag[j] && distance[j] != -1 && distance[j]<my_min )
+					if(!flag[j] && distance[j]<my_min )
 					{
 						my_min = distance[j];
 						my_k = j;
@@ -100,9 +101,8 @@ int main(int argc, char **argv)
 				else
 					endvr = startvr + chunk;
 				for(j = startvr; j < endvr && j < count[k]; j++)
-					if(distance[adj[k][j][0]] == -1 ||
-							distance[adj[k][j][0]] > distance[k] + adj[k][j][1])
-						distance[adj[k][j][0]] = distance[k] + adj[k][j][1];
+					if( distance[adj[k][j]] > distance[k] + weight[k][j])
+						distance[adj[k][j]] = distance[k] + weight[k][j];
 #pragma omp barrier
 			}
 		}

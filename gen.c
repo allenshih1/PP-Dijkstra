@@ -20,4 +20,5 @@ int main(int argc, char **argv)
 				printf("%d %d 10\n", j, k);
 	}
 	
+	return 0;
 }
