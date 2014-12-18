@@ -1,6 +1,11 @@
-CC = clang
+CC = cc
 CFLAGS =
-LDFLAGS = -framework OpenCL
+UNAME := $(shell uname)
+ifeq ($(UNAME), Darwin)
+	LDFLAGS = -framework OpenCL
+else
+	LDFLAGS = -lOpenCL
+endif
 SOURCES = dijkstra_cl.c
 OBJECTS = $(SOURCES:.c=.o)
 EXECUTE = dijkstra_cl
@@ -13,6 +18,7 @@ $(OBJECTS): $(SOURCES)
 	$(CC) $(CFLAGS) $(SOURCES) -c
 
 run:
-	./$(EXECUTE) < ../test_data/graph-large.in.txt
+	./$(EXECUTE) < in.txt
+	#../gen 10000 | ./$(EXECUTE)
 clean:
 	rm -rf *~ *.o $(EXECUTE)

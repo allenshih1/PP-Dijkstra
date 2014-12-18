@@ -5,7 +5,8 @@
 #include <CL/cl.h>
 #endif
 
-#define MAX_SIZE 3000
+#define MAX_SIZE 10000
+#define INFINITY 1000000000
 
 int adj[MAX_SIZE][MAX_SIZE][2];
 int count[MAX_SIZE];
@@ -23,16 +24,20 @@ int main(void)
 	// OpenCL
 	cl_context context;
 	cl_uint num_devices;
-	//cl_platform_id *platforms;
 	cl_device_id *devices;
 	cl_command_queue queue;
 	cl_program program;
-	cl_kernel init, dijkstra;
+	cl_kernel init, extractMin, dijkstra;
     char *devName;
     char *devVer;
 	size_t cb;
+	cl_int err;
+	size_t actual_work_size;
+	size_t global_work_size;
+	size_t local_work_size;
 
 	/*
+	cl_platform_id *platforms;
 	clGetPlatformIDs(0, 0, &num_devices);
 	platforms = (cl_platform_id*) malloc(num_devices * sizeof(cl_platform_id));
 	clGetPlatformIDs(num_devices, &platforms[0], NULL);
@@ -78,8 +83,28 @@ int main(void)
 		return 0;
 	}
 
+	// create buffers and copy data
+	//cl_mem cl_count = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, sizeof(int) * MAX_SIZE, &count[0], NULL);
+	//cl_mem cl_distance = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, sizeof(int) * MAX_SIZE, &distance[0], NULL);
+	//cl_mem cl_flag = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, sizeof(int) * MAX_SIZE, &flag[0], NULL);
+	cl_mem cl_count = clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(int) * MAX_SIZE, NULL, NULL);
+	cl_mem cl_distance = clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(int) * MAX_SIZE, NULL, NULL);
+	cl_mem cl_flag = clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(int) * MAX_SIZE, NULL, NULL);
+	if(cl_count == 0 || cl_distance == 0 || cl_flag == 0)
+	{
+		perror("Can't create OpenCL buffer");
+		clReleaseMemObject(cl_count);
+		clReleaseMemObject(cl_distance);
+		clReleaseMemObject(cl_flag);
+		clReleaseCommandQueue(queue);
+		clReleaseContext(context);
+		return 0;
+	}
+	cl_mem cl_min = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeof(int), NULL, NULL);
+	cl_mem cl_minID = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeof(int), NULL, NULL);
+	cl_mem cl_group_min = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeof(int) * 64, NULL, NULL);
+
 	// create kernel object from compiled program
-	
 	init = clCreateKernel(program, "init", NULL);
 	if(init == 0)
 	{
@@ -90,6 +115,25 @@ int main(void)
 		clReleaseContext(context);
 		return 0;
 	}
+	clSetKernelArg(init, 0, sizeof(cl_mem), &cl_count);
+	clSetKernelArg(init, 1, sizeof(cl_mem), &cl_distance);
+	clSetKernelArg(init, 2, sizeof(cl_mem), &cl_flag);
+
+	extractMin = clCreateKernel(program, "extractMin", NULL);
+	if(extractMin == 0)
+	{
+		perror("Error, can't load kernel extractMin");
+		clReleaseProgram(program);
+		//clReleaseMemObject();
+		clReleaseCommandQueue(queue);
+		clReleaseContext(context);
+		return 0;
+	}
+	clSetKernelArg(extractMin, 0, sizeof(cl_mem), &cl_distance);
+	clSetKernelArg(extractMin, 1, sizeof(cl_mem), &cl_flag);
+	clSetKernelArg(extractMin, 2, sizeof(cl_mem), &cl_min);
+	clSetKernelArg(extractMin, 3, sizeof(cl_mem), &cl_minID);
+
 	/*
 	dijkstra = clCreateKernel(program, "dijkstra", NULL);
 	if(dijkstra == 0)
@@ -103,61 +147,73 @@ int main(void)
 	}
 	*/
 
-	// create buffers and copy data
-	//cl_mem cl_count = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, sizeof(int) * MAX_SIZE, &count[0], NULL);
-	//cl_mem cl_distance = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, sizeof(int) * MAX_SIZE, &distance[0], NULL);
-	//cl_mem cl_flag = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, sizeof(int) * MAX_SIZE, &flag[0], NULL);
-	cl_mem cl_count = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, sizeof(int) * MAX_SIZE, &count[0], NULL);
-	cl_mem cl_distance = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, sizeof(int) * MAX_SIZE, &distance[0], NULL);
-	cl_mem cl_flag = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, sizeof(int) * MAX_SIZE, &flag[0], NULL);
-	if(cl_count == 0 || cl_distance == 0 || cl_flag == 0) {
-		perror("Can't create OpenCL buffer");
-		clReleaseMemObject(cl_count);
-		clReleaseMemObject(cl_distance);
-		clReleaseMemObject(cl_flag);
-		clReleaseCommandQueue(queue);
-		clReleaseContext(context);
-		return 0;
-	}
-
 	scanf("%d", &num_cases);
 
 	for(c = 0; c < num_cases; c++)
 	{
 		scanf("%d%d", &n, &m);
-		///*
+		/*
 		for(i = 0; i < n; i++)
 		{
 			count[i] = 0;
 			distance[i] = -1;
 			flag[i] = 0;
 		}
+		*/
+		///*
+		// invoke kernel init
+		actual_work_size = n;
+		local_work_size = 256;
+		global_work_size = n  + (256 - n % 256);	// must be the multiple of local_work_size
+		//size_t num_groups = global_work_size / local_work_size;
+		clSetKernelArg(init, 3, sizeof(int), &n);
+		err = clEnqueueNDRangeKernel(queue, init, 1, NULL, &global_work_size, &local_work_size, 0, NULL, NULL);
+		if(err == CL_SUCCESS)
+		{
+			clEnqueueReadBuffer(queue, cl_count, CL_TRUE, 0, sizeof(int) * actual_work_size, &count[0], 0, NULL, NULL);
+			clEnqueueReadBuffer(queue, cl_distance, CL_TRUE, 0, sizeof(int) * actual_work_size, &distance[0], 0, NULL, NULL);
+			clEnqueueReadBuffer(queue, cl_flag, CL_TRUE, 0, sizeof(int) * actual_work_size, &flag[0], 0, NULL, NULL);
+		}
 		//*/
-		
 
 		for(i = 0; i < m; i++)
 		{
 			scanf("%d%d%d", &u, &v, &w);
-			adj[u-1][count[u-1]][0] = v-1;
-			adj[u-1][count[u-1]][1] = w;
-			adj[v-1][count[v-1]][0] = u-1;
-			adj[v-1][count[v-1]][1] = w;
-			count[u-1]++;
-			count[v-1]++;
+			adj[u][count[u]][0] = v;
+			adj[u][count[u]][1] = w;
+			adj[v][count[v]][0] = u;
+			adj[v][count[v]][1] = w;
+			count[u]++;
+			count[v]++;
 		}
 
 		distance[0] = 0;
 
-		//
+		// dijkstra
 		for(i = 0; i < n; i++)
 		{
-			int min = 1000000000;
+			int min = INFINITY;
+			int minID;
+			clEnqueueWriteBuffer(queue, cl_min, CL_TRUE, 0, sizeof(int), &min, 0, NULL, NULL);
+			///*
 			for(j = 0; j < n; j++)
 				if(!flag[j] && distance[j] != -1 && distance[j] < min )
 				{
 					min = distance[j];
 					k = j;
 				}
+			//*/
+			// invoke kernel extractMin
+			/*
+			local_work_size = 64;
+			global_work_size = n;
+			err = clEnqueueNDRangeKernel(queue, extractMin, 1, NULL, &global_work_size, NULL, 0, NULL, NULL);
+			if(err == CL_SUCCESS)
+			{
+				clEnqueueReadBuffer(queue, cl_min, CL_TRUE, 0, sizeof(int), &min, 0, NULL, NULL);
+				clEnqueueReadBuffer(queue, cl_minID, CL_TRUE, 0, sizeof(int), &minID, 0, NULL, NULL);
+			}
+			*/
 
 			for(j = 0; j < count[k]; j++)
 				if(distance[adj[k][j][0]] == -1 ||
@@ -179,6 +235,7 @@ int main(void)
 	clReleaseMemObject(cl_distance);
 	clReleaseMemObject(cl_flag);
 	clReleaseKernel(init);
+	clReleaseKernel(extractMin);
 	//clReleaseKernel(dijkstra);
 	clReleaseProgram(program);
 	clReleaseCommandQueue(queue);
