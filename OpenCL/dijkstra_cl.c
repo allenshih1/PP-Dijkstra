@@ -5,8 +5,9 @@
 #include <CL/cl.h>
 #endif
 
-#define MAX_SIZE 10000
+#define MAX_SIZE 1000000
 #define INFINITY 1000000000
+#define LOCAL_WORK_SIZE 256
 
 int adj[MAX_SIZE][MAX_SIZE][2];
 int count[MAX_SIZE];
@@ -22,35 +23,53 @@ int main(void)
 	int i, j, k;
 
 	// OpenCL
+	cl_platform_id *platforms;
 	cl_context context;
 	cl_uint num_devices;
 	cl_device_id *devices;
 	cl_command_queue queue;
 	cl_program program;
-	cl_kernel init, extractMin, dijkstra;
+	cl_kernel init, reduce, extractMin, dijkstra;
     char *devName;
     char *devVer;
 	size_t cb;
 	cl_int err;
+	cl_uint num;
 	size_t actual_work_size;
 	size_t global_work_size;
 	size_t local_work_size;
+	size_t num_groups;
 
-	/*
-	cl_platform_id *platforms;
-	clGetPlatformIDs(0, 0, &num_devices);
-	platforms = (cl_platform_id*) malloc(num_devices * sizeof(cl_platform_id));
-	clGetPlatformIDs(num_devices, &platforms[0], NULL);
-	*/
-	// create a GPU context
-	context = clCreateContextFromType(NULL, CL_DEVICE_TYPE_GPU, NULL, NULL, NULL);
+	// get the number of supporting OpenCL platforms
+	err = clGetPlatformIDs(0, 0, &num);
+	if(err != CL_SUCCESS) {
+		perror("Unable to get platforms");
+		return 0;
+	}
+
+	// store platforms id
+	clGetPlatformIDs(0, 0, &num);
+	platforms = (cl_platform_id*) malloc(num * sizeof(cl_platform_id));
+	clGetPlatformIDs(num, &platforms[0], NULL);
+	printf("There are %d platform(s) on this device\n", num);
+	
+	// create a OpenCL context
+	cl_context_properties prop[] = {
+		CL_CONTEXT_PLATFORM,
+		(cl_context_properties)platforms[0],
+		0
+	};
+	context = clCreateContextFromType(prop, CL_DEVICE_TYPE_DEFAULT, NULL, NULL, NULL);
+
 	// get a list of devices
     clGetContextInfo(context, CL_CONTEXT_DEVICES, 0, NULL, &cb);
-    devices = (cl_device_id*) malloc(cb); 
-    clGetContextInfo(context, CL_CONTEXT_DEVICES, cb, devices, 0);
+    devices = (cl_device_id*) malloc(cb/sizeof(cl_device_id)); 
+    clGetContextInfo(context, CL_CONTEXT_DEVICES, cb, &devices[0], 0);
+
     // get the number of devices
     clGetContextInfo(context, CL_CONTEXT_NUM_DEVICES, 0, NULL, &cb);
     clGetContextInfo(context, CL_CONTEXT_NUM_DEVICES, cb, &num_devices, 0);
+    printf("There are %d device(s) in the context\n", num_devices);
 
     // show devices info
     for(i = 0; i < num_devices; i++)
@@ -70,7 +89,13 @@ int main(void)
     }
 
     // construct command queue
-    queue = clCreateCommandQueue(context, devices[1], 0, NULL);
+    queue = clCreateCommandQueue(context, devices[0], 0, NULL);
+    if(queue == 0)
+    {
+		perror("Can't create command queue\n");
+		clReleaseContext(context);
+		return 0;
+	}
 
     // create and compile the program object
     program = load_program(context, "shader.cl");
@@ -102,7 +127,6 @@ int main(void)
 	}
 	cl_mem cl_min = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeof(int), NULL, NULL);
 	cl_mem cl_minID = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeof(int), NULL, NULL);
-	cl_mem cl_group_min = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeof(int) * 64, NULL, NULL);
 
 	// create kernel object from compiled program
 	init = clCreateKernel(program, "init", NULL);
@@ -119,20 +143,20 @@ int main(void)
 	clSetKernelArg(init, 1, sizeof(cl_mem), &cl_distance);
 	clSetKernelArg(init, 2, sizeof(cl_mem), &cl_flag);
 
-	extractMin = clCreateKernel(program, "extractMin", NULL);
-	if(extractMin == 0)
+	reduce = clCreateKernel(program, "reduce", NULL);
+	if(reduce == 0)
 	{
-		perror("Error, can't load kernel extractMin");
+		perror("Error, can't load kernel reduce");
 		clReleaseProgram(program);
 		//clReleaseMemObject();
 		clReleaseCommandQueue(queue);
 		clReleaseContext(context);
 		return 0;
 	}
-	clSetKernelArg(extractMin, 0, sizeof(cl_mem), &cl_distance);
-	clSetKernelArg(extractMin, 1, sizeof(cl_mem), &cl_flag);
-	clSetKernelArg(extractMin, 2, sizeof(cl_mem), &cl_min);
-	clSetKernelArg(extractMin, 3, sizeof(cl_mem), &cl_minID);
+	clSetKernelArg(reduce, 0, sizeof(cl_mem), &cl_distance);
+	clSetKernelArg(reduce, 1, sizeof(cl_mem), &cl_flag);
+	clSetKernelArg(reduce, 2, sizeof(cl_mem), &cl_min);
+	clSetKernelArg(reduce, 3, sizeof(cl_mem), &cl_minID);
 
 	/*
 	dijkstra = clCreateKernel(program, "dijkstra", NULL);
@@ -156,7 +180,7 @@ int main(void)
 		for(i = 0; i < n; i++)
 		{
 			count[i] = 0;
-			distance[i] = -1;
+			distance[i] = -1
 			flag[i] = 0;
 		}
 		*/
@@ -195,25 +219,29 @@ int main(void)
 			int min = INFINITY;
 			int minID;
 			clEnqueueWriteBuffer(queue, cl_min, CL_TRUE, 0, sizeof(int), &min, 0, NULL, NULL);
-			///*
+			/*
 			for(j = 0; j < n; j++)
 				if(!flag[j] && distance[j] != -1 && distance[j] < min )
 				{
 					min = distance[j];
 					k = j;
 				}
-			//*/
-			// invoke kernel extractMin
-			/*
-			local_work_size = 64;
-			global_work_size = n;
-			err = clEnqueueNDRangeKernel(queue, extractMin, 1, NULL, &global_work_size, NULL, 0, NULL, NULL);
+			*/
+			// invoke kernel reduce
+			///*
+			//local_work_size = 256;
+			//global_work_size = n  + (256 - n % 256);
+			num_groups = global_work_size / local_work_size;
+			cl_mem cl_group_min = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeof(int) * num_groups, NULL, NULL);
+			clSetKernelArg(reduce, 4, sizeof(cl_mem), &cl_group_min);
+			clSetKernelArg(reduce, 5, sizeof(int), &n);
+			err = clEnqueueNDRangeKernel(queue, reduce, 1, NULL, &global_work_size, &local_work_size, 0, NULL, NULL);
 			if(err == CL_SUCCESS)
 			{
 				clEnqueueReadBuffer(queue, cl_min, CL_TRUE, 0, sizeof(int), &min, 0, NULL, NULL);
 				clEnqueueReadBuffer(queue, cl_minID, CL_TRUE, 0, sizeof(int), &minID, 0, NULL, NULL);
 			}
-			*/
+			//*/
 
 			for(j = 0; j < count[k]; j++)
 				if(distance[adj[k][j][0]] == -1 ||
@@ -235,7 +263,7 @@ int main(void)
 	clReleaseMemObject(cl_distance);
 	clReleaseMemObject(cl_flag);
 	clReleaseKernel(init);
-	clReleaseKernel(extractMin);
+	clReleaseKernel(reduce);
 	//clReleaseKernel(dijkstra);
 	clReleaseProgram(program);
 	clReleaseCommandQueue(queue);

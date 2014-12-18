@@ -9,7 +9,9 @@ __kernel void init(__global int *count, __global int *distance, __global int *fl
 	}
 }
 
-__kernel void extractMin(__global int *distance, __global int *flag, __global int *min, __global int *minID)
+
+
+__kernel void reduce(__global int *distance, __global int *flag, __global int *min, __global int *minID)
 {
 	/*
 	int gid = get_global_id(0);
@@ -21,7 +23,7 @@ __kernel void extractMin(__global int *distance, __global int *flag, __global in
 		mask = (offset << 1) - 1;
 		if((lid & mask) == 0)
 		{
-
+			
 		}
 	}
 	*/
@@ -37,6 +39,9 @@ __kernel void extractMin(__global int *distance, __global int *flag, __global in
 	}
 	//*/
 }
+
+__kernel void extractMin()
+{}
 /*
 __kernel void dijkstra(__global float *d_Result, __global float *d_Input, int N){
     const int tid = get_global_id(0);
