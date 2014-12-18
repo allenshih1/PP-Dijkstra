@@ -29,7 +29,7 @@ int main (){
     
     srand(time(NULL));
     
-    for(i=0;i<numberof_node-1;i++){
+    for(i=1;i<numberof_node;i++){
         node_count[i]=rand()%maxnode+1;
         totalnode+=node_count[i];
         totaledge+=node_count[i];
@@ -42,7 +42,7 @@ int main (){
     node_count[numberof_node-1]=0;
     edge_in_clus[numberof_node-1]=0;
     
-    for(i=0;i<numberof_node;i++){
+    for(i=1;i<=numberof_node;i++){
         printf("%d: %d %d\n",i,node_count[i],edge_in_clus[i]);
     }
 
@@ -52,13 +52,13 @@ int main (){
     fprintf(fp,"1\n");
     fprintf(fp,"%d %d\n",totalnode,totaledge);
     
-    for(i=0;i<numberof_node-1;i++){
+    for(i=1;i<numberof_node;i++){
         fprintf(fp,"%d %d %d\n",i,i+1,1000);
     }
     
     int currentstart=numberof_node;
     
-    for(i=0;i<numberof_node-1;i++){
+    for(i=1;i<numberof_node;i++){
         for(j=0;j<node_count[i];j++){
             fprintf(fp,"%d %d %d\n",i,currentstart+j,rand()%1000+1);  ///edge to cluster central
         }
