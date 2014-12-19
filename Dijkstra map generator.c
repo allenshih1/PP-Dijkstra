@@ -10,16 +10,20 @@
 #include <stdlib.h>
 #include <time.h>
 
-int main (){
+int main (int argc, char* argv[]){
     int i,j,k;
-    int numberof_node, maxnode,cluster_in;
+    int numberof_node;
+    int maxnode;
     int* node_count;
     int* edge_in_clus;
-    printf("Input number of cluster and max nodes in each cluster central point:\n");
-    scanf("%d %d",&numberof_node,&maxnode);
+    //printf("Input number of cluster and max nodes in each cluster central point:\n");
+    //scanf("%d %d",&numberof_node,&maxnode);
     
-    node_count=(int*)malloc(numberof_node*sizeof(int));
-    edge_in_clus=(int*)malloc(numberof_node*sizeof(int));
+    numberof_node=atoi(argv[1]);
+    maxnode=atoi(argv[2]);
+    
+    node_count=(int*)malloc((numberof_node+1)*sizeof(int));
+    edge_in_clus=(int*)malloc((numberof_node+1)*sizeof(int));
     
     int totalnode=0;
     int totaledge=0;
@@ -29,21 +33,21 @@ int main (){
     
     srand(time(NULL));
     
-    for(i=1;i<numberof_node;i++){
+    for(i=1;i<=numberof_node-1;i++){
         node_count[i]=rand()%maxnode+1;
         totalnode+=node_count[i];
         totaledge+=node_count[i];
-        printf("%d have %d node",i,node_count[i]);
+        //printf("%d have %d node",i,node_count[i]);
         if(node_count[i]>1)edge_in_clus[i]=(node_count[i]*(node_count[i]-1)/2); //n point at most n(n-1)/2 edge
         else edge_in_clus[i]=0;
-        printf(" have %d edge between the nodes\n",edge_in_clus[i]);
+        //printf(" have %d edge between the nodes\n",edge_in_clus[i]);
         totaledge+=edge_in_clus[i];
     }
-    node_count[numberof_node-1]=0;
-    edge_in_clus[numberof_node-1]=0;
+    node_count[numberof_node]=0;
+    edge_in_clus[numberof_node]=0;
     
     for(i=1;i<=numberof_node;i++){
-        printf("%d: %d %d\n",i,node_count[i],edge_in_clus[i]);
+        //printf("%d: %d %d\n",i,node_count[i],edge_in_clus[i]);
     }
 
     FILE *fp,*fi;
@@ -56,7 +60,7 @@ int main (){
         fprintf(fp,"%d %d %d\n",i,i+1,1000);
     }
     
-    int currentstart=numberof_node;
+    int currentstart=numberof_node+1;
     
     for(i=1;i<numberof_node;i++){
         for(j=0;j<node_count[i];j++){
