@@ -53,22 +53,22 @@ int main (int argc, char* argv[]){
     FILE *fp,*fi;
     
     fp=fopen("map.txt","w");
-    fprintf(fp,"1\n");
-    fprintf(fp,"%d %d\n",totalnode,totaledge);
+    fprintf(stdout,"1\n");
+    fprintf(stdout,"%d %d\n",totalnode,totaledge);
     
     for(i=1;i<numberof_node;i++){
-        fprintf(fp,"%d %d %d\n",i,i+1,1000);
+        fprintf(stdout,"%d %d %d\n",i,i+1,1000);
     }
     
     int currentstart=numberof_node+1;
     
     for(i=1;i<numberof_node;i++){
         for(j=0;j<node_count[i];j++){
-            fprintf(fp,"%d %d %d\n",i,currentstart+j,rand()%1000+1);  ///edge to cluster central
+            fprintf(stdout,"%d %d %d\n",i,currentstart+j,rand()%1000+1);  ///edge to cluster central
         }
         for(j=0;j<node_count[i];j++){
             for (k=j+1;k<node_count[i];k++){
-                fprintf(fp,"%d %d %d\n",currentstart+j,currentstart+k,rand()%1000+1);
+                fprintf(stdout,"%d %d %d\n",currentstart+j,currentstart+k,rand()%1000+1);
             
             }
             
