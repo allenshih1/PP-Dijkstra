@@ -24,7 +24,7 @@ int main(int argc, char **argv)
 	int c, numOfCase;
 	int n, m, u, v, w;
 	int i, j, min, k;
-	int msec, total;
+	int msec = 0, total = 0;
 	struct timeval t1, t2;
 	scanf("%d", &numOfCase);
 
