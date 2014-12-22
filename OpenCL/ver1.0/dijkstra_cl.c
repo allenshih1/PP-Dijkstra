@@ -7,6 +7,8 @@
 #endif
 
 #define MAX_SIZE 10000
+#define LOCAL_WORK_SIZE 256
+#define NUM_GROUPS ((MAX_SIZE-(MAX_SIZE%LOCAL_WORK_SIZE))/LOCAL_WORK_SIZE)
 
 int max_size = MAX_SIZE;
 int adj[MAX_SIZE][MAX_SIZE];
@@ -42,8 +44,8 @@ int main(void)
 	size_t global_work_size;
 	size_t local_work_size = 256;
 	size_t reduce_work_size = 1024;
-	size_t num_groups = reduce_work_size/local_work_size;
-	
+	size_t num_groups = reduce_work_size/local_work_size;	
+
 	// get the id of supporting OpenCL platforms
 	err = clGetPlatformIDs(0, 0, &num);
 	if(err != CL_SUCCESS)
@@ -66,15 +68,15 @@ int main(void)
 
 	// get a list of devices
 	clGetContextInfo(context, CL_CONTEXT_DEVICES, 0, NULL, &cb);
-	devices = (cl_device_id*) malloc(cb / sizeof(cl_device_id)); 
+	devices = (cl_device_id*) malloc(cb/sizeof(cl_device_id)); 
 	clGetContextInfo(context, CL_CONTEXT_DEVICES, cb, &devices[0], 0);
 
-	// get the number of devices
+    // get the number of devices
 	clGetContextInfo(context, CL_CONTEXT_NUM_DEVICES, 0, NULL, &cb);
 	clGetContextInfo(context, CL_CONTEXT_NUM_DEVICES, cb, &num_devices, 0);
 	printf("There are %d device(s) in the context\n", num_devices);
 
-	// show devices info
+    // show devices info
 	for(i = 0; i < num_devices; i++)
 	{
 		// get device name
@@ -89,12 +91,12 @@ int main(void)
 		clGetDeviceInfo(devices[i], CL_DEVICE_VERSION, 0, NULL, &cb);
 		devVer = (char*) malloc(sizeof(char) * cb);
 		clGetDeviceInfo(devices[i], CL_DEVICE_VERSION, cb, &devVer[0], NULL);
-		devVer[cb] = 0;
+		devVer[cb-2] = 0;
 		printf(" (supports %s)\n", devVer);
 		free(devVer);
 	}
 
-	// construct command queue
+    // construct command queue
 	queue = clCreateCommandQueue(context, devices[0], 0, NULL);
 	if(queue == 0)
 	{
@@ -103,7 +105,7 @@ int main(void)
 		return 0;
 	}
 
-	// create cl buffers
+	// create buffers and copy data
 	cl_mem cl_adj = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeof(int) * MAX_SIZE * MAX_SIZE, NULL, NULL);
 	cl_mem cl_weight = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeof(int) * MAX_SIZE * MAX_SIZE, NULL, NULL);
 	cl_mem cl_count = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeof(int) * MAX_SIZE, NULL, NULL);
@@ -115,58 +117,57 @@ int main(void)
 	cl_mem cl_min_id = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeof(int) * 1, NULL, NULL);
 	if(cl_adj == 0 || cl_weight == 0 || 
 		cl_count == 0 || cl_distance == 0 || cl_flag == 0 ||
-		cl_group_min == 0 || cl_group_min_id == 0 ||
-		cl_min == 0 || cl_min_id == 0)
+		cl_group_min == 0 || cl_group_min_id == 0)
 	{
 		perror("Can't create OpenCL buffer");
-		clReleaseMemObject(cl_adj);
-		clReleaseMemObject(cl_weight);
 		clReleaseMemObject(cl_count);
 		clReleaseMemObject(cl_distance);
 		clReleaseMemObject(cl_flag);
+		clReleaseCommandQueue(queue);
 		clReleaseMemObject(cl_group_min);
 		clReleaseMemObject(cl_group_min_id);
-		clReleaseMemObject(cl_min);
-		clReleaseMemObject(cl_min_id);
-		clReleaseCommandQueue(queue);
 		clReleaseContext(context);
 		return 0;
 	}
 
-	// create and compile the program object
-	program = load_program(context, "shader.cl");
-	if(program == 0)
-	{
+    // create and compile the program object
+    program = load_program(context, "shader.cl");
+    if(program == 0)
+    {
 		perror("Error, can't load or build program");
-		clReleaseMemObject(cl_adj);
-		clReleaseMemObject(cl_weight);
 		clReleaseMemObject(cl_count);
 		clReleaseMemObject(cl_distance);
 		clReleaseMemObject(cl_flag);
-		clReleaseMemObject(cl_group_min);
-		clReleaseMemObject(cl_group_min_id);
-		clReleaseMemObject(cl_min);
-		clReleaseMemObject(cl_min_id);
 		clReleaseCommandQueue(queue);
 		clReleaseContext(context);
 		return 0;
 	}
 
-	// create kernel objects from compiled program	
+	// create kernel object from compiled program
+	init = clCreateKernel(program, "init", NULL);
+	if(init == 0)
+	{
+		perror("Error, can't load kernel init");
+		clReleaseProgram(program);
+		clReleaseMemObject(cl_count);
+		clReleaseMemObject(cl_distance);
+		clReleaseMemObject(cl_flag);
+		clReleaseCommandQueue(queue);
+		clReleaseContext(context);
+		return 0;
+	}
+	clSetKernelArg(init, 0, sizeof(cl_mem), &cl_count);
+	clSetKernelArg(init, 1, sizeof(cl_mem), &cl_distance);
+	clSetKernelArg(init, 2, sizeof(cl_mem), &cl_flag);
+	
 	reduce = clCreateKernel(program, "reduce", NULL);
 	if(reduce == 0)
 	{
 		perror("Error, can't load kernel reduce");
 		clReleaseProgram(program);
-		clReleaseMemObject(cl_adj);
-		clReleaseMemObject(cl_weight);
 		clReleaseMemObject(cl_count);
 		clReleaseMemObject(cl_distance);
 		clReleaseMemObject(cl_flag);
-		clReleaseMemObject(cl_group_min);
-		clReleaseMemObject(cl_group_min_id);
-		clReleaseMemObject(cl_min);
-		clReleaseMemObject(cl_min_id);
 		clReleaseCommandQueue(queue);
 		clReleaseContext(context);
 		return 0;
@@ -181,22 +182,16 @@ int main(void)
 	{
 		perror("Error, can't load kernel extractMin");
 		clReleaseProgram(program);
-		clReleaseMemObject(cl_adj);
-		clReleaseMemObject(cl_weight);
 		clReleaseMemObject(cl_count);
 		clReleaseMemObject(cl_distance);
 		clReleaseMemObject(cl_flag);
-		clReleaseMemObject(cl_group_min);
-		clReleaseMemObject(cl_group_min_id);
-		clReleaseMemObject(cl_min);
-		clReleaseMemObject(cl_min_id);
 		clReleaseCommandQueue(queue);
 		clReleaseContext(context);
 		return 0;
 	}
 	clSetKernelArg(extractMin, 0, sizeof(cl_mem), &cl_group_min);
 	clSetKernelArg(extractMin, 1, sizeof(cl_mem), &cl_group_min_id);
-	clSetKernelArg(extractMin, 2, sizeof(int), &num_groups);	// can't use size_t
+	clSetKernelArg(extractMin, 2, sizeof(int), &num_groups);
 	clSetKernelArg(extractMin, 3, sizeof(cl_mem), &cl_min);
 	clSetKernelArg(extractMin, 4, sizeof(cl_mem), &cl_min_id);
 	clSetKernelArg(extractMin, 5, sizeof(cl_mem), &cl_flag);
@@ -206,22 +201,16 @@ int main(void)
 	{
 		perror("Error, can't load kernel relax");
 		clReleaseProgram(program);
-		clReleaseMemObject(cl_adj);
-		clReleaseMemObject(cl_weight);
 		clReleaseMemObject(cl_count);
 		clReleaseMemObject(cl_distance);
 		clReleaseMemObject(cl_flag);
-		clReleaseMemObject(cl_group_min);
-		clReleaseMemObject(cl_group_min_id);
-		clReleaseMemObject(cl_min);
-		clReleaseMemObject(cl_min_id);
 		clReleaseCommandQueue(queue);
 		clReleaseContext(context);
 		return 0;
 	}
 	clSetKernelArg(relax, 0, sizeof(cl_mem), &cl_adj);
-	clSetKernelArg(relax, 1, sizeof(cl_mem), &cl_weight);
-	clSetKernelArg(relax, 2, sizeof(cl_mem), &cl_distance);
+	clSetKernelArg(relax, 1, sizeof(cl_mem), &cl_distance);
+	clSetKernelArg(relax, 2, sizeof(cl_mem), &cl_weight);
 	clSetKernelArg(relax, 3, sizeof(cl_mem), &cl_count);
 	clSetKernelArg(relax, 4, sizeof(int), &max_size);
 	clSetKernelArg(relax, 5, sizeof(cl_mem), &cl_min_id);
@@ -231,14 +220,32 @@ int main(void)
 	for(c = 0; c < num_cases; c++)
 	{
 		scanf("%d%d", &n, &m);
-
-		// initialize
+		///*
 		for(i = 0; i < n; i++)
 		{
 			count[i] = 0;
 			distance[i] = 1e9;
 			flag[i] = 0;
 		}
+		//*/
+		/*
+		// invoke kernel init
+		actual_work_size = n;
+		local_work_size = 256;
+		global_work_size = n  + (256 - n % 256);	// must be the multiple of local_work_size
+		//size_t num_groups = global_work_size / local_work_size;
+		clSetKernelArg(init, 3, sizeof(int), &n);
+		err = clEnqueueNDRangeKernel(queue, init, 1, NULL, &global_work_size, &local_work_size, 0, NULL, NULL);
+		if(err == CL_SUCCESS)
+		{
+			cl_event initEvt;		
+			clEnqueueReadBuffer(queue, cl_count, CL_TRUE, 0, sizeof(int) * actual_work_size, &count[0], 0, NULL, NULL);
+			clEnqueueReadBuffer(queue, cl_distance, CL_TRUE, 0, sizeof(int) * actual_work_size, &distance[0], 0, NULL, NULL);
+			//clEnqueueReadBuffer(queue, cl_flag, CL_TRUE, 0, sizeof(int) * actual_work_size, &flag[0], 0, NULL, &initEvt);
+			clWaitForEvents(1, &initEvt);
+		}
+		
+		*/
 
 		for(i = 0; i < m; i++)
 		{
@@ -251,9 +258,7 @@ int main(void)
 			count[v]++;
 		}
 
-		distance[0] = 0;	// set 0 as source
-
-		// copy data to cl buffer
+		distance[0] = 0;
 		cl_event startEvt;
 		clEnqueueWriteBuffer(queue, cl_adj, CL_TRUE, 0, sizeof(int) * MAX_SIZE * MAX_SIZE, &adj[0], 0, NULL, NULL);
 		clEnqueueWriteBuffer(queue, cl_weight, CL_TRUE, 0, sizeof(int) * MAX_SIZE * MAX_SIZE, &weight[0], 0, NULL, NULL);
@@ -261,14 +266,23 @@ int main(void)
 		clEnqueueWriteBuffer(queue, cl_distance, CL_TRUE, 0, sizeof(int) * MAX_SIZE, &distance[0], 0, NULL, NULL);
 		clEnqueueWriteBuffer(queue, cl_flag, CL_TRUE, 0, sizeof(int) * MAX_SIZE, &flag[0], 0, NULL, &startEvt);
 		clWaitForEvents(1, &startEvt);
+		
+		//cl_event setSourceEvt;
+		//clEnqueueWriteBuffer(queue, cl_distance, CL_TRUE, 0, sizeof(int) * MAX_SIZE, &distance[0], 0, NULL, &setSourceEvt);
+		//clWaitForEvents(1, &setSourceEvt);
 
 		// dijkstra
 		gettimeofday(&t1, NULL);
 		for(i = 0; i < n; i++)
 		{
+			int min = 1e9;	// INF
+			int min_id;
+
+			///*
 			// invoke kernel reduce
 			local_work_size = 256;
 			global_work_size = reduce_work_size;
+			//num_groups = global_work_size / local_work_size;
 			clSetKernelArg(reduce, 4, sizeof(int), &n);
 			err = clEnqueueNDRangeKernel(queue, reduce, 1, NULL, &global_work_size, &local_work_size, 0, NULL, NULL);
 			if(err == CL_SUCCESS){}
@@ -276,27 +290,64 @@ int main(void)
 			{
 				printf("Error: can't enqueue kernel reduce\n");
 			}
+			//*/
 
 			// invoke kernel extractMin
 			local_work_size = num_groups;
 			global_work_size = num_groups;
 			err = clEnqueueNDRangeKernel(queue, extractMin, 1, NULL, &global_work_size, &local_work_size, 0, NULL, NULL);
-			if(err == CL_SUCCESS){}
+			if(err == CL_SUCCESS)
+			{
+				//cl_event minEvt;
+				//clEnqueueReadBuffer(queue, cl_min, CL_TRUE, 0, sizeof(int) * 1, &min, 0, NULL, NULL);
+				//clEnqueueReadBuffer(queue, cl_min_id, CL_TRUE, 0, sizeof(int) * 1, &k, 0, NULL, &minEvt);
+				//clWaitForEvents(1, &minEvt);
+			}
 			else
 			{
 				printf("Error: can't enqueue kernel extractMin\n");
 				printf("%d\n", err);
 			}
 
+			//flag[k] = 1;
+			//clEnqueueWriteBuffer(queue, cl_flag, CL_TRUE, 0, sizeof(int) * MAX_SIZE, &flag[0], 0, NULL, NULL);
+
+			/*
+			cl_event fEvt;
+			clEnqueueReadBuffer(queue, cl_count, CL_TRUE, 0, sizeof(int) * MAX_SIZE, &count[0], 0, NULL, NULL);
+			clEnqueueReadBuffer(queue, cl_min_id, CL_TRUE, 0, sizeof(int) * 1, &k, 0, NULL, NULL);
+			clEnqueueReadBuffer(queue, cl_distance, CL_TRUE, 0, sizeof(int) * MAX_SIZE, &distance[0], 0, NULL, &fEvt);
+			clWaitForEvents(1, &fEvt);
+			int length = count[k];
+			for(j = 0; j < count[k]; j++)
+				if( distance[adj[k][j]] > distance[k] + weight[k][j])
+				{
+					distance[adj[k][j]] = distance[k] + weight[k][j];
+				}
+			clEnqueueWriteBuffer(queue, cl_distance, CL_TRUE, 0, sizeof(int) * MAX_SIZE, &distance[0], 0, NULL, NULL);
+			*/
+			
+
 			// invoke kernel relax
-			local_work_size = 256;
+			///*
 			global_work_size = n + (256 - n % 256);
+			local_work_size = 256;
 			err = clEnqueueNDRangeKernel(queue, relax, 1, NULL, &global_work_size, &local_work_size, 0, NULL, NULL);
 			if(err == CL_SUCCESS){}
 			else
 			{
 				printf("Error: can't enqueue kernel relax\n");
-			}		
+			}
+			//*/
+/*
+			int *d = (int*)malloc(sizeof(int) * MAX_SIZE);
+			clEnqueueReadBuffer(queue, cl_distance, CL_TRUE, 0, sizeof(int) * MAX_SIZE, &d[0], 0, NULL, NULL);
+			int t;
+			for(t = 0; t < n; t++) {
+				printf("distance[%d] = %d\n", t, d[t]);
+			}
+			free(d);
+*/			
 		}
 		cl_event finalEvt;
 		clEnqueueReadBuffer(queue, cl_distance, CL_TRUE, 0, sizeof(int) * MAX_SIZE, &distance[0], 0, NULL, &finalEvt);
@@ -309,7 +360,7 @@ int main(void)
 
 		int max = 0;
 		for(i = 0; i < n; i++)
-			if( max < distance[i])
+			if(max < distance[i])
 				max = distance[i];
 
 		printf("%d\n", max);
@@ -318,6 +369,7 @@ int main(void)
 	printf("%d ms\n", total);
 
 	// release kernel
+	clReleaseKernel(init);
 	clReleaseKernel(reduce);
 	clReleaseKernel(extractMin);
 	clReleaseKernel(relax);
@@ -336,7 +388,7 @@ int main(void)
 cl_program load_program(cl_context context, const char* filename)
 {
 	FILE *fp;
-	size_t length;
+	size_t length;	// long
 	char *data;
 	const char* source;
 	size_t ret;
