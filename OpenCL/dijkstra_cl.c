@@ -89,7 +89,7 @@ int main(void)
 		clGetDeviceInfo(devices[i], CL_DEVICE_VERSION, 0, NULL, &cb);
 		devVer = (char*) malloc(sizeof(char) * cb);
 		clGetDeviceInfo(devices[i], CL_DEVICE_VERSION, cb, &devVer[0], NULL);
-		devVer[cb-2] = 0;
+		devVer[cb] = 0;
 		printf(" (supports %s)\n", devVer);
 		free(devVer);
 	}
