@@ -2,3 +2,4 @@ dijkstra
 gen
 OpenCL/dijkstra_cl
 a.out
+.DS_Store

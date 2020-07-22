@@ -7,7 +7,7 @@ else
 	LDFLAGS = -lOpenCL
 endif
 SOURCES = dijkstra_cl.c
-OBJECTS = $(SOURCES:.c=.o)
+OBJECTS = $(notdir $(SOURCES:.c=.o))
 EXECUTE = dijkstra_cl
 
 all: $(OBJECTS) $(EXECUTE)

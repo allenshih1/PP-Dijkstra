@@ -5,3 +5,6 @@ dijkstra: dijkstra.c
 
 gen: gen.c
 	gcc -o gen gen.c
+
+run:
+	./gen 10000 | ./dijkstra 4

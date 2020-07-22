@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <sys/time.h>
-#if defined(__APPLE__) || defined(__MACOSX)
+#if defined(__APPLE__)
 #include <OpenCL/opencl.h>
 #else
 #include <CL/cl.h>
